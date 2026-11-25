@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taco Fiesta Rush — Taqueria Meksiko</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0a1a; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  /* Cinematic grade (revisi 13:50 WIB): warm amber vignette + a faint
+     golden-hour wash over the whole frame — sunset depth, not flat dark. */
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 2;
+    background: radial-gradient(ellipse at 50% 42%, transparent 52%, rgba(30,10,2,0.42) 85%, rgba(10,2,12,0.6) 100%); }
+  #warmth { position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background: linear-gradient(180deg, rgba(255,140,40,0.07), transparent 40%, rgba(255,80,20,0.05)); }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* Top HUD bar */
+  #hud-top { position: fixed; top: 0; left: 0; right: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; background: linear-gradient(180deg, rgba(10,6,24,0.92), rgba(10,6,24,0.55) 80%, transparent);
+    color: #fff; pointer-events: none; }
+  #hud-top .title { font-size: 24px; font-weight: 900; letter-spacing: 1px; color: #fff; flex-shrink: 0;
+    white-space: nowrap;
+    text-shadow: 0 0 12px #ff2e88, 0 0 30px #ff2e88; }
+  #hud-top .title span { color: #22d3ee; text-shadow: 0 0 12px #22d3ee, 0 0 30px #22d3ee; }
+  .pill { background: #ff2e88; border-radius: 999px; padding: 4px 12px; font-weight: 800; font-size: 15px;
+    box-shadow: 0 0 14px rgba(255,46,136,0.8); white-space: nowrap; flex-shrink: 0; }
+  .pill.lvname { background: #22d3ee; color: #062a33; box-shadow: 0 0 14px rgba(34,211,238,0.8); }
+  #hud-timer { margin-left: auto; font-size: 32px; font-weight: 900; color: #fff; flex-shrink: 0;
+    text-shadow: 0 0 14px #22d3ee; font-variant-numeric: tabular-nums; }
+  #hud-timer.low { color: #ff3b5c; text-shadow: 0 0 16px #ff3b5c; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.55; } }
+  .stat { font-size: 16px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+  .stat b { color: #f2c94c; }
+  #hud-combo { color: #4ade80; font-weight: 900; white-space: nowrap; flex-shrink: 0; font-size: 15px; }
+  #combo-meter { width: 70px; height: 8px; background: #33244a; border-radius: 4px; overflow: hidden; flex-shrink: 0; }
+  #combo-fill { height: 100%; width: 0%; background: #4ade80; border-radius: 4px; transition: width 0.2s; }
+  #hud-slow { color: #22d3ee; font-size: 15px; font-weight: 900; white-space: nowrap; display: none;
+    background: rgba(34,211,238,0.15); border: 1px solid #22d3ee; border-radius: 999px; padding: 3px 10px; }
+  /* Perfect Cook timing bar: needle sweeps the track while a station cooks. */
+  #timing { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); z-index: 6; display: none;
+    width: 420px; text-align: center; pointer-events: none; }
+  #timing-track { position: relative; height: 16px; background: rgba(10,6,24,0.85); border: 2px solid #33244a;
+    border-radius: 8px; overflow: hidden; }
+  #timing-track .tz-yellow { position: absolute; left: 28%; width: 44%; top: 0; bottom: 0; background: rgba(242,201,76,0.55); }
+  #timing-track .tz-green { position: absolute; left: 44%; width: 12%; top: 0; bottom: 0; background: #4ade80;
+    box-shadow: 0 0 12px #4ade80; }
+  #timing-needle { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -2px; background: #fff;
+    box-shadow: 0 0 8px #fff; }
+  #timing-label { margin-top: 5px; font-size: 14px; font-weight: 800; color: #fff; text-shadow: 0 1px 4px #000; }
+  #hud-hearts { color: #ff3b5c; font-size: 19px; letter-spacing: 2px; }
+  /* Order board (left) — compact so 4 tickets end above the bin labels. */
+  #orders { position: fixed; top: 56px; left: 14px; z-index: 5; width: 300px; display: flex; flex-direction: column; gap: 5px; }
+  #orders .board-label { color: #f2c94c; font-weight: 900; letter-spacing: 2px; font-size: 13px;
+    text-shadow: 0 0 10px rgba(242,201,76,0.9); }
+  .ticket { background: rgba(18,8,31,0.92); border: 2px solid #33244a; border-left: 6px solid #22d3ee;
+    border-radius: 10px; padding: 4px 9px; color: #fff; cursor: pointer; }
+  .ticket.vip { border-color: #f2c94c; border-left-color: #f2c94c; box-shadow: 0 0 16px rgba(242,201,76,0.55); }
+  .ticket.boss { border-color: #ffd23c; border-left-color: #ffd23c; background: rgba(58,32,8,0.95);
+    box-shadow: 0 0 22px rgba(255,210,60,0.8); animation: pulse 0.8s infinite; }
+  .ticket.boss .ticket-name { color: #ffd23c; }
+  .ticket.serve { border-color: #4ade80; box-shadow: 0 0 18px rgba(74,222,128,0.7); animation: pulse 1s infinite; }
+  .ticket.urgent { border-color: #ff3b5c; animation: pulse 0.6s infinite; }
+  .ticket.urgent .ticket-cta { color: #ff3b5c; }
+  .ticket-name { font-weight: 800; font-size: 15px; }
+  .ticket-price { color: #f2c94c; float: right; }
+  .ticket-needs { font-size: 12px; color: #c9b8e8; margin-top: 1px; }
+  .patience { height: 7px; background: #33244a; border-radius: 4px; margin-top: 3px; overflow: hidden; }
+  .patience-fill { height: 100%; border-radius: 4px; }
+  .patience-fill.ok { background: #4ade80; } .patience-fill.warn { background: #f2c94c; } .patience-fill.bad { background: #ff3b5c; }
+  .ticket-cta { font-size: 11px; font-weight: 800; color: #4ade80; margin-top: 2px; }
+  .ticket.empty { color: #8a7aa8; cursor: default; }
+  /* Bottom info */
+  #hud-bottom { position: fixed; left: 14px; bottom: 12px; z-index: 5; color: #fff; pointer-events: none;
+    text-shadow: 0 1px 4px #000; }
+  #hand { font-size: 19px; font-weight: 800; background: rgba(10,6,24,0.8); border: 2px solid #ff2e88;
+    display: inline-block; padding: 6px 14px; border-radius: 999px; }
+  #plate-info { font-size: 17px; font-weight: 700; margin-top: 8px; background: rgba(10,6,24,0.8);
+    display: inline-block; padding: 5px 12px; border-radius: 8px; }
+  #plate-info.ready { color: #4ade80; border: 2px solid #4ade80; }
+  #help { font-size: 13px; color: #c9b8e8; margin-top: 8px; }
+  #banner { position: fixed; top: 34%; left: 50%; transform: translate(-50%, -50%); z-index: 6; display: none;
+    font-size: 44px; font-weight: 900; color: #f2c94c; text-shadow: 0 0 18px #ff2e88, 0 0 44px #ff2e88;
+    pointer-events: none; white-space: nowrap; }
+  #fest-banner { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%); z-index: 6; display: none;
+    font-size: 34px; font-weight: 900; color: #ffd23c; text-shadow: 0 0 16px #ff6a2a, 0 0 40px #ff2e88;
+    pointer-events: none; white-space: nowrap; animation: pulse 0.8s infinite; }
+  #flash { position: fixed; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at 50% 50%, rgba(255,210,60,0.55), rgba(255,210,60,0) 70%); }
+  #toast { position: fixed; bottom: 132px; right: 22px; z-index: 6; font-size: 28px; font-weight: 900;
+    color: #4ade80; text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  /* Overlays */
+  .overlay { position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center;
+    background: rgba(13,6,26,0.72); }
+  .panel { background: linear-gradient(160deg, #1a1030, #12081f); border: 3px solid #ff2e88; border-radius: 18px;
+    box-shadow: 0 0 40px rgba(255,46,136,0.55), 0 0 80px rgba(34,211,238,0.25);
+    color: #fff; padding: 28px 36px; max-width: 640px; text-align: center; }
+  .panel h1 { margin: 0; font-size: 46px; letter-spacing: 2px; color: #fff;
+    text-shadow: 0 0 16px #ff2e88, 0 0 44px #ff2e88; }
+  .panel h1 span { color: #22d3ee; text-shadow: 0 0 16px #22d3ee, 0 0 44px #22d3ee; }
+  .panel h2 { margin: 0 0 8px; font-size: 36px; color: #f2c94c; text-shadow: 0 0 14px rgba(242,201,76,0.8); }
+  .panel .jp { color: #ff2e88; font-size: 20px; letter-spacing: 6px; margin-top: 2px; }
+  .panel p { font-size: 16px; line-height: 1.5; color: #e8dcff; }
+  .panel .keys { font-size: 14px; color: #c9b8e8; line-height: 1.7; }
+  .panel .keys b { color: #fff; }
+  #menu-list { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 22px; text-align: left; margin: 12px 0;
+    font-size: 14px; }
+  .menu-row { display: flex; justify-content: space-between; border-bottom: 1px dashed #33244a; padding: 2px 0; }
+  .menu-price { color: #f2c94c; font-weight: 800; }
+  .start-hint { font-size: 19px; font-weight: 900; color: #4ade80; margin-top: 14px; animation: pulse 1.2s infinite; }
+  #over-stats { font-size: 17px; line-height: 1.8; text-align: left; }
+  #over-stats b { color: #f2c94c; }
+  .over-reason { color: #ff8aa8; font-weight: 700; }
+  #over-dishes { margin-top: 10px; font-size: 14px; color: #c9b8e8; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Taco Fiesta Rush: masak 16 menu Meksiko di taqueria sebelum pelanggan kabur"></canvas>
+<div id="warmth"></div>
+<div id="vignette"></div>
+<div id="flash"></div>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud-top">
+  <div class="title">TACO <span>FIESTA</span> RUSH</div>
+  <div class="pill" id="hud-lv">LV 1</div>
+  <div class="pill lvname" id="hud-level">BUKA TAQUERIA</div>
+  <div id="hud-timer">3:00</div>
+  <div class="stat">Skor <b id="hud-score">0</b></div>
+  <div class="stat">Koin <b id="hud-coins">¥0</b></div>
+  <div id="hud-combo"></div>
+  <div id="combo-meter"><div id="combo-fill"></div></div>
+  <div id="hud-slow"></div>
+  <div id="hud-hearts">♥♥♥</div>
+</div>
+
+<div id="orders"><div class="board-label">ORDER BOARD</div></div>
+
+<div id="hud-bottom">
+  <div id="hand">Tangan kosong — klik bahan di meja</div><br>
+  <div id="plate-info">Piring kosong</div>
+  <div id="help">Klik bahan (1–9, 0, Q, E, R, A, S, D, F) · C iris · W panci · G comal · P piring · T sampah · tekan stasiun lagi saat masak = Perfect Cook · X Slow Time · Esc jeda · M suara</div>
+</div>
+
+<div id="banner"></div>
+<div id="fest-banner"></div>
+<div id="timing"><div id="timing-track"><div class="tz-yellow"></div><div class="tz-green"></div><div id="timing-needle"></div></div><div id="timing-label">Tekan stasiun lagi di zona HIJAU = PERFECT!</div></div>
+<div id="toast"></div>
+
+<div class="overlay" id="ov-title">
+  <div class="panel">
+    <h1>TACO <span>FIESTA</span> RUSH</h1>
+    <div class="jp">¡TACOS · FIESTA · MEXICO!</div>
+    <p>Taqueria Meksiko di matahari terbenam gurun. Ambil bahan dari meja, iris di
+    talenan, masak di panci, panggang tortilla di comal, rakit di piring — sajikan
+    sebelum pelanggan kehabisan sabar. Saat masak, tekan stasiun lagi saat jarum
+    timing di zona hijau = <b>Perfect Cook</b>, masakan langsung selesai! Tiap 45 detik ada <b>Fiesta Rush</b>:
+    pesanan datang 2x cepat! Di <b>Fiesta Rush</b>, masakan yang kelamaan di
+    panci gosong. Bahan di tangan lebih dari 12 detik jadi basi — buang! Sajikan
+    beruntun tanpa salah untuk naikkan multiplier sampai <b>x5</b>, tiap 5 serve
+    sempurna dapat <b>Slow Time</b> (tekan X, sabar pelanggan jalan setengah),
+    dan layani <b>El Jefe</b> — boss VIP yang pesan Fiesta Grande 4 bahan, bayar 3x!</p>
+    <div id="menu-list"></div>
+    <div class="keys"><b>1–9, 0, Q, E, R, A, S, D, F</b> bahan · <b>C</b> talenan · <b>W</b> panci · <b>G</b> comal · <b>P</b> piring · <b>T</b> sampah · <b>X</b> Slow Time<br>
+    Klik juga bisa: bahan, stasiun, dan tiket pesanan. <b>Spasi</b> mulai · <b>Esc</b> jeda · <b>M</b> suara</div>
+    <div class="start-hint">KLIK / SPASI UNTUK MULAI</div>
+  </div>
+</div>
+
+<div class="overlay" id="ov-pause">
+  <div class="panel"><h2>JEDA</h2><p>Mariachi tetap main. Tekan <b>Esc</b> atau klik untuk lanjut.</p></div>
+</div>
+
+<div class="overlay" id="ov-over">
+  <div class="panel">
+    <h2>SHIFT SELESAI</h2>
+    <div id="over-stats"></div>
+    <div id="over-dishes"></div>
+    <div class="start-hint">KLIK / SPASI UNTUK MAIN LAGI</div>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
